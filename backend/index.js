@@ -39,7 +39,7 @@ const JWT_SECRET = process.env.JWT_SECRET;
 
 const pool = new Pool({
   user: 'postgres',
-  password: '960X513OV',
+  password: 'drowssap',
   host: 'localhost',
   port: 5432,
   database: 'tp',
@@ -78,21 +78,45 @@ const storage = new CloudinaryStorage({
 const upload = multer({ storage: storage });
 
 
+
+
+
+
+
+
+
+
+// Fetch all courses
+app.get('/courses', async (req, res) => {
+  try {
+    const allCourses = await pool.query('SELECT * FROM course');
+    res.json(allCourses.rows);
+  } catch (err) {
+    console.error(err.message);
+    res.status(500).send('Server error');
+  }
+});
+
+
+
+
+
+
+
+
+
+
+
+// -----------------------------------------------------------------------------------
+
 // Student signUp
 app.post('/student', async (req, res) => {
   try {
     const {
-      registration_id, first_name, last_name, id_number, date_of_birth, gender, email, phone_number,
-      university_name, course_name, specialization, graduation_date,
+      first_name, last_name, id_number,email, phone_number,
+      university_id, graduation_date,
       primary_teaching_subject, secondary_teaching_subject, kenya_county, hashed_password, confirm_pass
     } = req.body;
-
-    // Input validation
-    if (!first_name || !last_name || !id_number || !date_of_birth || !gender || !email || !phone_number ||
-        !university_name || !course_name || !specialization || !graduation_date ||
-        !primary_teaching_subject || !secondary_teaching_subject || !kenya_county || !hashed_password || !confirm_pass) {
-      return res.status(400).json({ message: "All fields are required" });
-    }
 
     // Check if passwords match
     if (hashed_password !== confirm_pass) {
@@ -101,12 +125,12 @@ app.post('/student', async (req, res) => {
 
     // Check for existing student
     const existingStudent = await pool.query(
-      'SELECT * FROM student WHERE registration_id = $1',
-      [registration_id]
+      'SELECT * FROM student WHERE id_number = $1 OR email = $2',
+      [id_number, email]
     );
 
     if (existingStudent.rows.length > 0) {
-      return res.status(400).json({ msg: 'Student ID number already exists' });
+      return res.status(400).json({ msg: 'Student with this ID number or email already exists' });
     }
 
     // Hash the password
@@ -115,32 +139,32 @@ app.post('/student', async (req, res) => {
     // Insert into database
     const newStudent = await pool.query(
       `INSERT INTO student (
-        first_name, last_name, id_number, date_of_birth, gender, email, phone_number,
-        university_name, course_name, specialization, graduation_date,
-        primary_teaching_subject, secondary_teaching_subject, kenya_county, hashed_password, role
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16) RETURNING *`,
+        first_name, last_name, id_number,  email, phone_number,
+        university_id, graduation_date, primary_teaching_subject, secondary_teaching_subject,
+        kenya_county, password
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, 
+                $8, $9, $10, $11)
+       RETURNING *`,
       [
-        first_name, last_name, id_number, date_of_birth, gender, email, phone_number,
-        university_name, course_name, specialization, graduation_date,
-        primary_teaching_subject, secondary_teaching_subject, kenya_county, hashed_password, 'student-teacher'
+        first_name, last_name, id_number, email, phone_number,
+        university_id, graduation_date, primary_teaching_subject, secondary_teaching_subject,
+        kenya_county, hashed_password
       ]
     );
 
-  // // Generate JWT token
-  //   const token = jwt.sign({ userId: newStudent.id, role: newStudent.role }, JWT_SECRET, { expiresIn: '1h' });
-
-  //   // Return token to client
-  //   res.json({ token });
-
-    res.json(newStudent.rows[0]); // Return the newly created student record
+    // Return the newly created student record
+    res.json(newStudent.rows[0]);
   } catch (err) {
     console.error(err.message);
     res.status(500).send('Server error'); // Handle any unexpected errors
   }
 });
 
-// student signin
 
+
+
+
+// student signin
 app.post('/student/signin', async (req, res) => {
     console.log('Received body:', req.body);
 
@@ -163,17 +187,18 @@ app.post('/student/signin', async (req, res) => {
     }
 
     const student = result.rows[0];
+    console.log(student);
 
     // Verify password
     // const isValidPassword = await bcrypt.compare(hashed_password, student.hashed_password);
-    // if (!isValidPassword) {
-    //   return res.status(400).json({ msg: 'Invalid email or password' });
-    // }
-
-    // Check for JWT_SECRET
-    if (!process.env.JWT_SECRET) {
-      throw new Error('JWT_SECRET is not defined in the environment variables');
+    if (hashed_password !== student.password) {
+      return res.status(400).json({ msg: 'Invalid email or passworddd' });
     }
+
+    // // Check for JWT_SECRET
+    // if (!process.env.JWT_SECRET) {
+    //   throw new Error('JWT_SECRET is not defined in the environment variables');
+    // }
 
     // Generate token
     const token = jwt.sign(
@@ -182,10 +207,10 @@ app.post('/student/signin', async (req, res) => {
         first_name: student.first_name,
         last_name: student.last_name,
         email: student.email,
-        university_name: student.university_name,
-        role: student.role
+        university_name: student.university_id,
+        role: "student"
       },
-      process.env.JWT_SECRET,
+      '191cedcb0d23f2334a73f6dfdb9ae36972e3c57b624012ba8d962679334601e46f7e2686bcb4e480fb403961a58c33d740d814540d9cd94814f7712adc650dc4',
       { expiresIn: '1h' }
     );
 
@@ -193,160 +218,125 @@ app.post('/student/signin', async (req, res) => {
     res.json({
       msg: 'Sign in successful',
       token,
-      student
+      // student
         });
 
   } catch (error) {
-    console.error('Signin error:', error);
+    console.error('Signin errorrrr:', error);
     res.status(500).json({ msg: 'Server error', error: error.message });
   }
 });
 
 
-// university signin
-
-app.post('/uni/signin', async (req, res) => {
-    console.log('Received body:', req.body);
-
-  if(req.get('Content-Type') !== 'application/json') {
-    return res.status(415).send('Unsupported Media Type');
-  }
-  try {
-    const { official_email, pass } = req.body;
-
-    // Validate input
-    if (!official_email || !pass) {
-      return res.status(400).json({ msg: 'Please provide both email and password' });
-    }
-
-    // Check if the student exists
-    const result = await pool.query('SELECT * FROM university WHERE official_email = $1', [official_email]);
-    
-    if (result.rows.length === 0) {
-      return res.status(400).json({ msg: 'Invalid email or password' });
-    }
-
-    const university = result.rows[0];
-
-    // Verify password
-    // const isValidPassword = await bcrypt.compare(hashed_password, student.hashed_password);
-    // if (!isValidPassword) {
-    //   return res.status(400).json({ msg: 'Invalid email or password' });
-    // }
-
-    // Check for JWT_SECRET
-    if (!process.env.JWT_SECRET) {
-      throw new Error('JWT_SECRET is not defined in the environment variables');
-    }
-
-    // Generate token
-    const token = jwt.sign(
-      { 
-        university_id: university.university_id,
-        university_name: university.university_name,
-        official_email: university.official_email,
-        registration_number: university.registration_number,
-        // role: university.role
-      },
-      process.env.JWT_SECRET,
-      { expiresIn: '1h' }
-    );
-
-    // Send response
-    res.json({
-      msg: 'Sign in successful',
-      token,
-      university
-        });
-
-  } catch (error) {
-    console.error('Signin error:', error);
-    res.status(500).json({ msg: 'Server error', error: error.message });
-  }
-});
+// -----------------------------------------------------------------------------------
 
 
 
-// university signup
+
+
+
+
+
+
+
+
+// University signup
 app.post('/university', async (req, res) => {
   try {
-    const {university_name, establishment_date, registration_number, charter_number,
-          accreditation_status, official_email, official_phone_number, website,
-          postal_address, physical_address, county, category, pass, confirm_pass, role}
-          = req.body;
-
-    const newUniversity = await pool.query(
-        `INSERT INTO university (
-          university_name, establishment_date, registration_number, charter_number,
-          accreditation_status, official_email, official_phone_number, website,
-          postal_address, physical_address, county, category, pass, confirm_pass
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14) RETURNING *`,
-        [university_name, establishment_date, registration_number, charter_number,
-          accreditation_status, official_email, official_phone_number, website,
-          postal_address, physical_address, county, category, pass, confirm_pass]
-    ); 
-
-    res.json(newUniversity.rows[0]);
- 
-  } catch (err) {
-    console.error(err.message);
-    res.status(500).send('server error');
-  }
-});
-
-// schools signup
-app.post('/high_school', upload.single('school_photo'), async (req, res) => {
-  try {
-    const {
-      school_id, school_name, establishment_date, registration_number, school_level,
-      education_system, school_type, official_email, official_phone_number,
-      website, postal_address, physical_address, principal_name, principal_email,
-      principal_phone, county, sub_county, hashed_password, confirm_pass,
+    const { 
+      university_name, registration_number, charter_number,
+      official_email, website, county 
     } = req.body;
 
-    const school_photo_url = req.file ? req.file.path : null;
-    const role = 'highschool';
+  
 
-    const newHigh_school = await pool.query(
-      `INSERT INTO high_school (
-        school_name, establishment_date, registration_number, school_level,
-        education_system, school_type, official_email, official_phone_number,
-        website, postal_address, physical_address, principal_name, principal_email,
-        principal_phone, county, sub_county, hashed_password, confirm_pass, role, school_photo_url
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20) RETURNING *`,
-      [school_name, establishment_date, registration_number, school_level,
-        education_system, school_type, official_email, official_phone_number,
-        website, postal_address, physical_address, principal_name, principal_email,
-        principal_phone, county, sub_county, hashed_password, confirm_pass, role, school_photo_url]
+    // Check for existing university
+    const existingUniversity = await pool.query(
+      'SELECT * FROM university WHERE registration_number = $1 OR official_email = $2',
+      [registration_number, official_email]
     );
 
+    if (existingUniversity.rows.length > 0) {
+      return res.status(400).json({ msg: 'University with this registration number or email already exists' });
+    }
 
-    res.json(newHigh_school.rows[0]);
- 
+    // Insert into database
+    const newUniversity = await pool.query(
+      `INSERT INTO university (
+        university_name, registration_number, charter_number, official_email, website, county
+      ) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
+      [
+        university_name, registration_number, charter_number,
+        official_email, website, county
+      ]
+    );
+
+    // Return the newly created university record
+    res.json(newUniversity.rows[0]);
   } catch (err) {
     console.error(err.message);
-    res.status(500).send('server error');
+    res.status(500).send('Server error'); // Handle any unexpected errors
   }
 });
 
-// highscool signin
-app.post('/high_school/signin', async (req, res) => {
-    console.log('Received body:', req.body);
+// -----------------------------------------------------------------------------------
 
-  if(req.get('Content-Type') !== 'application/json') {
-    return res.status(415).send('Unsupported Media Type');
-  }
+
+
+
+
+
+
+
+
+
+// HIGH SCHOOL SIGNUP
+app.post('/high_school', async (req, res) => {
   try {
-    const { official_email, hashed_password } = req.body;
+    const {
+      school_name, registration_number, school_level,
+      education_system, school_type, official_email,
+      website, principal_name, principal_email,
+      county,password
+    } = req.body;
 
-    // Validate input
-    if (!official_email || !hashed_password) {
-      return res.status(400).json({ msg: 'Please provide both email and password' });
-    }
 
-    // Check if the student exists
+    // Insert into database
+    const newHighSchool = await pool.query(
+      `INSERT INTO high_school (
+        school_name, registration_number, school_level,
+        education_system, school_type, official_email,
+        website, principal_name, principal_email,
+        county, password
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING *`,
+      [
+        school_name, registration_number, school_level,
+        education_system, school_type, official_email,
+        website, principal_name, principal_email,
+        county, password
+      ]
+    );
+    res.json(newHighSchool.rows[0]);
+ 
+  } catch (err) {
+    console.error(err.message);
+    res.status(500).send('Server error');
+  }
+});
+
+
+
+//  HIGH SCHOOL SIGN IN
+app.post('/high_school/signin', async (req, res) => {
+  console.log('Received body:', req.body);
+
+  try {
+    const { official_email, password } = req.body;
+
+
+    // Check if the high school exists
     const result = await pool.query('SELECT * FROM high_school WHERE official_email = $1', [official_email]);
-    
+
     if (result.rows.length === 0) {
       return res.status(400).json({ msg: 'Invalid email or password' });
     }
@@ -354,14 +344,9 @@ app.post('/high_school/signin', async (req, res) => {
     const high_school = result.rows[0];
 
     // Verify password
-    // const isValidPassword = await bcrypt.compare(hashed_password, student.hashed_password);
-    // if (!isValidPassword) {
-    //   return res.status(400).json({ msg: 'Invalid email or password' });
-    // }
-
-    // Check for JWT_SECRET
-    if (!process.env.JWT_SECRET) {
-      throw new Error('JWT_SECRET is not defined in the environment variables');
+    // const isValidPassword = await bcrypt.compare(hashed_password, high_school.password);
+    if (password !== high_school.password) {
+      return res.status(400).json({ msg: 'Invalid email or password' });
     }
 
     // Generate token
@@ -370,9 +355,9 @@ app.post('/high_school/signin', async (req, res) => {
         school_id: high_school.school_id,
         school_name: high_school.school_name,
         official_email: high_school.official_email,
-        role: high_school.role
+        role: 'highschool'
       },
-      process.env.JWT_SECRET,
+     '191cedcb0d23f2334a73f6dfdb9ae36972e3c57b624012ba8d962679334601e46f7e2686bcb4e480fb403961a58c33d740d814540d9cd94814f7712adc650dc4',
       { expiresIn: '1h' }
     );
 
@@ -381,7 +366,7 @@ app.post('/high_school/signin', async (req, res) => {
       msg: 'Sign in successful',
       token,
       high_school
-        });
+    });
 
   } catch (error) {
     console.error('Signin error:', error);
@@ -390,130 +375,359 @@ app.post('/high_school/signin', async (req, res) => {
 });
 
 
-// hod signUp
+// -----------------------------------------------------------------------------------
+
+
+
+
+
+
+
+
+
+
+
+
+
+// HOD signUp
 app.post('/hods', async (req, res) => {
   try {
-    const {hod_name, email, department_id, hod_number, pass, confirm_pass}
-          = req.body;
+    const { hod_name, email, university_id, password } = req.body;
 
     // Hash the password
-    const hashedPassword = await bcrypt.hash(pass, 10); // Hash with salt rounds = 10
+    // const hashedPassword = await bcrypt.hash(password, 10);
 
-    const newHods = await pool.query(
-      `INSERT INTO hods (
-        hod_name, email, department_id, hod_number, pass, role
-      ) VALUES ($1, $2, $3, $4, $5, 'hod') RETURNING *`,
-      [hod_name, email, department_id, hod_number, hashedPassword]
+    // Check for existing HOD
+    const existingHod = await pool.query(
+      'SELECT * FROM hods WHERE email = $1',
+      [email]
     );
 
-    res.json(newHods.rows[0]);
- 
+    if (existingHod.rows.length > 0) {
+      return res.status(400).json({ msg: 'HOD with this email already exists' });
+    }
+
+    // Insert into database
+    const newHod = await pool.query(
+      `INSERT INTO hods (
+        hod_name, email, password, university_id
+      ) VALUES ($1, $2, $3, $4) RETURNING *`,
+      [
+        hod_name, email, password, university_id
+      ]
+    );
+    // Return the newly created HOD record
+    res.json(newHod.rows[0]);
   } catch (err) {
     console.error(err.message);
-    res.status(500).send('server error');
+    res.status(500).send('Server error'); // Handle any unexpected errors
   }
 });
+
+
+
+
+
+// HOD login
+app.post('/hod/login', async (req, res) => {
+  try {
+    const { email, password } = req.body;
+
+  
+
+    // Check if HOD exists
+    const hodResult = await pool.query(
+      'SELECT * FROM hods WHERE email = $1',
+      [email]
+    );
+
+    if (hodResult.rows.length === 0) {
+      return res.status(400).json({ message: 'Invalid email or password' });
+    }
+
+    const hod = hodResult.rows[0];
+
+    // Compare the provided password with the hashed password in the database
+    // const isMatch = await bcrypt.compare(password, hod.password);
+
+    if (password !== hod.password) {
+      return res.status(400).json({ message: 'Invalid email or password' });
+    }
+
+    // Fetch university details
+    const universityResult = await pool.query(
+      'SELECT university_name FROM university WHERE university_id = $1',
+      [hod.university_id]
+    );
+
+    if (universityResult.rows.length === 0) {
+      return res.status(500).json({ message: 'University details not found' });
+    }
+
+    const university = universityResult.rows[0];
+
+    // Generate JWT token
+    const token = jwt.sign(
+      {
+        hod_id: hod.hod_id,
+        hod_name: hod.hod_name,
+        email: hod.email,
+        university_name: university.university_name,
+        role: "hod"
+      },
+      '191cedcb0d23f2334a73f6dfdb9ae36972e3c57b624012ba8d962679334601e46f7e2686bcb4e480fb403961a58c33d740d814540d9cd94814f7712adc650dc4',
+      { expiresIn: '1h' }
+    );
+
+    // Send response
+    res.json({
+      msg: 'Sign in successful',
+      token,
+      hod: {
+        hod_id: hod.hod_id,
+        hod_name: hod.hod_name,
+        email: hod.email,
+        university_name: university.university_name
+      }
+    });
+  } catch (err) {
+    console.error(err.message);
+    res.status(500).send('Server error'); // Handle any unexpected errors
+  }
+});
+
+// -----------------------------------------------------------------------------------
+
+
+
+
+
+
+
+
+
 
 // supervisors signUp
 app.post('/supervisors', async (req, res) => {
   try {
-    const {supervisor_name, email, sup_number, department_id,  pass, confirm_pass}
-          = req.body;
+    const { supervisor_name, email, university_id, course_id, password } = req.body;
 
     const newSupervisors = await pool.query(
-        `INSERT INTO supervisors (
-          supervisor_name, email, sup_number, department_id,  pass, confirm_pass
-        ) VALUES ($1, $2, $3, $4, $5, $6,) RETURNING *`,
-        [supervisor_name, email, sup_number, department_id,  pass, confirm_pass]
+      `INSERT INTO supervisors (
+        supervisor_name, email, approval_status, university_id, course_id, password
+      ) VALUES ($1, $2, 'pending', $3, $4, $5) RETURNING *`,
+      [supervisor_name, email, university_id, course_id, password]
     ); 
 
     res.json(newSupervisors.rows[0]);
  
   } catch (err) {
     console.error(err.message);
-    res.status(500).send('server error');
+    res.status(500).send('Server error');
   }
 });
 
-// departments
-app.post('/departments', async (req, res) => {
+
+
+// SUPERVISOR login
+app.post('/supervisors/signin', async (req, res) => {
+  console.log('Received body:', req.body);
+
   try {
-    const {dep_name, university_id}
-          = req.body;
+    const { email, password } = req.body;
 
-    const newDepartments = await pool.query(
-        `INSERT INTO departments (
-          dep_name, university_id
-        ) VALUES ($1, $2) RETURNING *`,
-        [dep_name, university_id]
-    ); 
+    // Check if the supervisor exists
+    const result = await pool.query('SELECT * FROM supervisors WHERE email = $1', [email]);
 
-    res.json(newDepartments.rows[0]);
- 
-  } catch (err) {
-    console.error(err.message);
-    res.status(500).send('server error');
+    if (result.rows.length === 0) {
+      return res.status(400).json({ msg: 'Invalid email or password' });
+    }
+
+    const supervisor = result.rows[0];
+
+  
+    if (password !== supervisor.password) {
+      return res.status(400).json({ msg: 'Invalid email or password' });
+    }
+
+
+    // Generate token
+    const token = jwt.sign(
+      { 
+        id: supervisor.id,
+        supervisor_name: supervisor.supervisor_name,
+        email: supervisor.email,
+        approval_status: supervisor.approval_status,
+        university_id: supervisor.university_id,
+        course_id: supervisor.course_id,
+        role: 'supervisor'
+      },
+      '191cedcb0d23f2334a73f6dfdb9ae36972e3c57b624012ba8d962679334601e46f7e2686bcb4e480fb403961a58c33d740d814540d9cd94814f7712adc650dc4',
+      { expiresIn: '1h' }
+    );
+
+    // Send response
+    res.json({
+      msg: 'Sign in successful',
+      token,
+      supervisor
+    });
+
+  } catch (error) {
+    console.error('Signin error:', error);
+    res.status(500).json({ msg: 'Server error', error: error.message });
   }
 });
+
+
+
+
+
+
+
+
+
+// ================================================================================
+
+
 
 // Endpoint to handle POST requests to insert into vacancy table
 app.post('/vacancy', async (req, res) => {
-    try {
-        const {
-            primary_subject,
-            secondary_subject,
-            positions_available,
-            stat_date,
-            end_date,
-            application_deadline,
-            application_method,
-            coordinator_name,
-            coordinator_email,
-            coordinator_phone,
-            accommodation_provided,
-            stipend_amount
-        } = req.body;
+  try {
+      const {
+          primary_subject,
+          secondary_subject,
+          positions_available,
+          stat_date,
+          end_date,
+          application_deadline,
+          coordinator_name,
+          coordinator_email,
+          coordinator_phone,
+          accommodation_provided,
+          stipend_amount,
+          school_id
+      } = req.body;
 
-        const newVacancy = await pool.query(
-            `INSERT INTO vacancy (
-                primary_subject,
-                secondary_subject,
-                positions_available,
-                stat_date,
-                end_date,
-                application_deadline,
-                application_method,
-                coordinator_name,
-                coordinator_email,
-                coordinator_phone,
-                accommodation_provided,
-                stipend_amount
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
-            RETURNING *`,
-            [
-                primary_subject,
-                secondary_subject,
-                positions_available,
-                stat_date,
-                end_date,
-                application_deadline,
-                application_method,
-                coordinator_name,
-                coordinator_email,
-                coordinator_phone,
-                accommodation_provided,
-                stipend_amount
-            ]
-        );
 
-        res.json(newVacancy.rows[0]);
-    } catch (err) {
-        console.error(err.message);
-        res.status(500).send('Server error');
-    }
+      // Insert new vacancy into the database
+      const newVacancy = await pool.query(
+          `INSERT INTO vacancy (
+              primary_subject,
+              secondary_subject,
+              positions_available,
+              stat_date,
+              end_date,
+              application_deadline,
+              coordinator_name,
+              coordinator_email,
+              coordinator_phone,
+              accommodation_provided,
+              stipend_amount,
+              school_id
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+          RETURNING *`,
+          [
+              primary_subject,
+              secondary_subject,
+              positions_available,
+              stat_date,
+              end_date,
+              application_deadline,
+              coordinator_name,
+              coordinator_email,
+              coordinator_phone,
+              accommodation_provided,
+              stipend_amount,
+              school_id
+          ]
+      );
+
+      // Send response
+      res.json(newVacancy.rows[0]);
+  } catch (err) {
+      console.error(err.message);
+      res.status(500).send('Server error');
+  }
 });
 
 
+// GET all vacancies
+app.get('/vacancies', async (req, res) => {
+  try {
+    const query = `
+      SELECT 
+        v.vancancy_id, 
+        v.primary_subject, 
+        v.secondary_subject, 
+        v.positions_available, 
+        v.stat_date AS start_date, 
+        v.end_date, 
+        v.application_deadline,
+        v.coordinator_name,
+        v.coordinator_email,
+        v.coordinator_phone,
+        v.accommodation_provided,
+        v.stipend_amount,
+        h.school_id
+      FROM 
+        vacancy v
+      JOIN 
+        high_school h ON v.school_id = h.school_id
+      WHERE 
+        v.application_deadline >= CURRENT_DATE
+      ORDER BY 
+        v.application_deadline ASC
+    `;
+    
+    const result = await pool.query(query);
+    console.log(result); // Log the result for debugging purposes
+    res.json({ vacancies: result.rows });
+  } catch (err) {
+    console.error('Error fetching vacancies:', err);
+    res.status(500).json({ message: 'Server error while fetching vacancies' });
+  }
+});
+
+
+// VACANCY BY ID
+app.get('/vacancy/:vancancy_id', async (req, res) => {
+  try {
+    const { vancancy_id } = req.params;
+    const query = `
+      SELECT 
+        v.vancancy_id, 
+        v.primary_subject, 
+        v.secondary_subject, 
+        v.positions_available,
+        v.stat_date AS start_date, 
+        v.end_date, 
+        v.application_deadline,
+        v.coordinator_name, 
+        v.coordinator_email, 
+        v.coordinator_phone,
+        v.accommodation_provided, 
+        v.stipend_amount,
+        h.school_id
+      FROM vacancy v
+      JOIN high_school h ON v.school_id = h.school_id
+      WHERE v.vancancy_id = $1
+    `;
+    const result = await pool.query(query, [vancancy_id]);
+    console.log(result);
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ message: 'Vacancy not found' });
+    }
+    
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Error fetching vacancy details:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+});
+
+// ================================================================================================================================================================
 
 // Error handling middleware
 app.use((err, req, res, next) => {
@@ -521,154 +735,7 @@ app.use((err, req, res, next) => {
   res.status(500).json({ msg: 'Server error', error: err.message });
 });
 
-// hod Login endpoint
-// app.post('/signin', async (req, res) => {
-//   const { email, password } = req.body;
 
-//   try {
-//     // Example query for student login
-//     const student = await pool.query(
-//       'SELECT * FROM student WHERE email = $1',
-//       [email]
-//     );
-
-//     if (student.rows.length === 0) {
-//       return res.status(404).json({ message: 'Student not found' });
-//     }
-
-//     // Compare passwords
-//     const isMatch = await bcrypt.compare(password, student.rows[0].pass);
-
-//     if (!isMatch) {
-//       return res.status(401).json({ message: 'Invalid credentials' });
-//     }
-
-//     // Generate and return JWT for student
-//     const token = jwt.sign(
-//       { userId: student.rows[0].id, role: 'student' },
-//       process.env.JWT_SECRET,
-//       { expiresIn: '1h' }
-//     );
-
-//     res.json({ token });
-
-//   } catch (error) {
-//     console.error(error.message);
-//     res.status(500).json({ message: 'Server error' });
-//   }
-// });
-
-
-// HOD Login endpoint
-app.post('/hods', async (req, res) => {
-  const { email, password } = req.body;
-
-  try {
-    // Example query for hods login
-    const hods = await pool.query(
-      'SELECT * FROM hods WHERE email = $1',
-      [email]
-    );
-
-    if (hods.rows.length === 0) {
-      return res.status(404).json({ message: 'hods not found' });
-    }
-
-    // Compare passwords
-    const isMatch = await bcrypt.compare(password, hods.rows[0].pass);
-
-    if (!isMatch) {
-      return res.status(401).json({ message: 'Invalid credentials' });
-    }
-
-    // Generate and return JWT for hods
-    const token = jwt.sign(
-      { userId: hods.rows[0].id, role: 'student' },
-      process.env.JWT_SECRET,
-      { expiresIn: '1h' }
-    );
-
-    res.json({ token });
-
-  } catch (error) {
-    console.error(error.message);
-    res.status(500).json({ message: 'Server error' });
-  }
-});
-
-//supervisors Login endpoint
-app.post('/supervisors', async (req, res) => {
-  const { email, password } = req.body;
-
-  try {
-    // Example query for supervisors login
-    const supervisors = await pool.query(
-      'SELECT * FROM supervisors WHERE email = $1',
-      [email]
-    );
-
-    if (supervisors.rows.length === 0) {
-      return res.status(404).json({ message: 'supervisors not found' });
-    }
-
-    // Compare passwords
-    const isMatch = await bcrypt.compare(password, supervisors.rows[0].pass);
-
-    if (!isMatch) {
-      return res.status(401).json({ message: 'Invalid credentials' });
-    }
-
-    // Generate and return JWT for supervisors
-    const token = jwt.sign(
-      { userId: supervisors.rows[0].id, role: 'supervisors' },
-      process.env.JWT_SECRET,
-      { expiresIn: '1h' }
-    );
-
-    res.json({ token });
-
-  } catch (error) {
-    console.error(error.message);
-    res.status(500).json({ message: 'Server error' });
-  }
-});
-
-// high school Login endpoint
-app.post('/highschool_signin', async (req, res) => {
-  const { email, hashed_password } = req.body;
-
-  try {
-    // Example query for high_school login
-    const high_school = await pool.query(
-      'SELECT * FROM high_school WHERE email = $1',
-      [email]
-    );
-
-    if (high_school.rows.length === 0) {
-      return res.status(404).json({ message: 'high_school not found' });
-    }
-
-    // Compare passwords
-    // const isMatch = await bcrypt.compare(password, high_school.rows[0].pass);
-
-    // if (!isMatch) {
-    //   return res.status(401).json({ message: 'Invalid credentials' });
-    // }
-
-    // Generate and return JWT for high_school
-    const token = jwt.sign(
-      { userId: high_school.rows[0].id, role: 'highschool' },
-      process.env.JWT_SECRET,
-      { expiresIn: '1h' }
-    );
-
-    res.json({ token });
-
-  } catch (error) {
-    console.error(error.message);
-    res.status(500).json({ message: 'Server error' });
-  }
-});
 
 // Middleware to authenticate JWT tokens
 const authenticateJWT = (req, res, next) => {
@@ -725,186 +792,7 @@ const verifyToken = (req, res, next) => {
   }
 };
 
-// Upload vacancy route
-app.post('/vacancy/add', verifyToken, async (req, res) => {
-  try {
-    const token = req.headers['authorization'].split(' ')[1];
-    if (!token) {
-      return res.status(401).json({ message: 'No token provided' });
-    }
 
-    const decodedToken = jwt.verify(token, JWT_SECRET);
-    const school_id = decodedToken.school_id;
-
-    const vacancyData = req.body;
-    // Handle the vacancy data
-    console.log(vacancyData);
-    
-    const {
-      primary_subject,
-      secondary_subject,
-      positions_available,
-      stat_date,
-      end_date,
-      application_deadline,
-      application_method,
-      coordinator_name,
-      coordinator_email,
-      coordinator_phone,
-      accommodation_provided,
-      stipend_amount
-    } = req.body;
-
-    const query = `
-      INSERT INTO vacancy (
-        primary_subject, secondary_subject, positions_available, 
-        stat_date, end_date, application_deadline, application_method,
-        coordinator_name, coordinator_email, coordinator_phone,
-        accommodation_provided, stipend_amount, school_id
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
-      RETURNING *
-    `;
-
-    const values = [
-      primary_subject, secondary_subject, positions_available,
-      stat_date, end_date, application_deadline, application_method,
-      coordinator_name, coordinator_email, coordinator_phone,
-      accommodation_provided, stipend_amount, school_id
-    ];
-
-    const { rows } = await pool.query(query, values);
-    return res.status(201).json({ message: 'Vacancy created', vacancy_id: rows[0].vacancy_id });
-  } catch (err) {
-    console.error(err);
-    return res.status(500).json({ error: 'Server error' });
-  }
-});
-
-// getting all vacancies
-app.get('/vacancies', async (req, res) => {
-  try {
-    const query = `
-      SELECT 
-        v.vancancy_id, 
-        v.primary_subject, 
-        v.secondary_subject, 
-        v.positions_available, 
-        v.stat_date AS start_date, 
-        v.end_date, 
-        v.application_deadline,
-        v.application_method,
-        v.coordinator_name,
-        v.coordinator_email,
-        v.coordinator_phone,
-        v.accommodation_provided,
-        v.stipend_amount,
-        h.school_id,
-        h.school_name,
-        h.official_email,
-        h.official_phone_number,
-        h.county,
-        h.school_photo_url
-      FROM 
-        vacancy v
-      JOIN 
-        high_school h ON v.school_id = h.school_id
-      WHERE 
-        v.application_deadline >= CURRENT_DATE
-      ORDER BY 
-        v.application_deadline ASC
-    `;
-    
-    const result = await pool.query(query);
-    console.log(result) // Assuming db.query handles the database query execution
-    res.json({ vacancies: result.rows });
-  } catch (err) {
-    console.error('Error fetching vacancies:', err);
-    res.status(500).json({ message: 'Server error while fetching vacancies' });
-  }
-});
-
-// get vacancy by Id
-
-app.get('/vacancy/:vancancy_id', async (req, res) => {
-  try {
-    const {vancancy_id} = req.params;
-    const query = `
-      SELECT 
-        v.primary_subject, v.secondary_subject, v.positions_available,
-        v.stat_date, v.end_date, v.application_deadline, v.application_method,
-        v.coordinator_name, v.coordinator_email, v.coordinator_phone,
-        v.accommodation_provided, v.stipend_amount,
-        h.school_name AS school_name, h.official_email, h.official_phone_number,
-        h.county, h.school_photo_url
-      FROM vacancy v
-      JOIN high_school h ON v.school_id = h.school_id
-      WHERE v.vancancy_id = $2
-    `;
-    const result = await pool.query(query, [vancancy_id]);
-    console.log(result);
-    
-    if (result.rows.length === 0) {
-      return res.status(404).json({ message: 'Vacancy not found' });
-    }
-    
-    res.json(result.rows[0]);
-  } catch (error) {
-    console.error('Error fetching vacancy details:', error);
-    res.status(500).json({ message: 'Internal server error' });
-  }
-});
-// app.get('/vacancy/:vancancy_id', async (req, res) => {
-//   try {
-//     const { vancancy_id } = req.params;
-
-//     // Ensure that vancancy_id is an integer
-//     const vacancyIdInt = parseInt(vancancy_id, 10);
-//     if (isNaN(vacancyIdInt)) {
-//       return res.status(400).json({ message: 'Invalid vacancy ID' });
-//     }
-//     console.log(vacancyIdInt);
-
-//     const query = `
-//       SELECT 
-//         v.vancancy_id, 
-//         v.primary_subject, 
-//         v.secondary_subject, 
-//         v.positions_available, 
-//         v.stat_date AS start_date, 
-//         v.end_date, 
-//         v.application_deadline,
-//         v.application_method,
-//         v.coordinator_name,
-//         v.coordinator_email,
-//         v.coordinator_phone,
-//         v.accommodation_provided,
-//         v.stipend_amount,
-//         h.school_id,
-//         h.school_name,
-//         h.official_email,
-//         h.official_phone_number,
-//         h.county,
-//         h.school_photo_url
-//       FROM 
-//         vacancy v
-//       JOIN 
-//         high_school h ON v.school_id = h.school_id
-//       WHERE 
-//         v.vancancy_id = $1
-//     `;
-
-//     const result = await pool.query(query, [vacancyIdInt]);
-
-//     if (result.rows.length === 0) {
-//       return res.status(404).json({ message: 'Vacancy not found' });
-//     }
-
-//     res.json(result.rows[0]);
-//   } catch (err) {
-//     console.error('Error fetching vacancy:', err);
-//     res.status(500).json({ message: 'Server error while fetching vacancy' });
-//   }
-// });
 
 // Get school details by ID route
 app.get('/school/:id', verifyToken, async (req, res) => {
