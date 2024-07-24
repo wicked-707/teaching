@@ -58,31 +58,10 @@ pool.connect((err, client, release) => {
   release();
 });
 
-
-cloudinary.config({
-  cloud_name: 'dmfa4ntvh',
-  api_key: '275433718151248',
-  api_secret: 'QYcCgy1iH5nCM47Ck-v7EOlLulo'
+// homepage for server
+app.get('/', (req, res) => {
+  res.send('Welcome to the API');
 });
-
-// Configure multer for Cloudinary upload
-const storage = new CloudinaryStorage({
-  cloudinary: cloudinary,
-  params: {
-    folder: 'high_school_photos',
-    allowed_formats: ['jpg', 'png', 'jpeg'],
-    transformation: [{ width: 500, height: 500, crop: 'limit' }]
-  }
-});
-
-const upload = multer({ storage: storage });
-
-
-
-
-
-
-
 
 
 
@@ -96,15 +75,6 @@ app.get('/courses', async (req, res) => {
     res.status(500).send('Server error');
   }
 });
-
-
-
-
-
-
-
-
-
 
 
 // -----------------------------------------------------------------------------------
@@ -163,7 +133,88 @@ app.post('/student', async (req, res) => {
 
 
 
+// ALL UNVERIFIED STUDENTS
+// Fetch all students with pending status
+app.get('/students/pending', async (req, res) => {
+  try {
+    const query = `
+      SELECT 
+        registration_id, 
+        first_name, 
+        last_name, 
+        id_number, 
+        email, 
+        phone_number, 
+        university_id, 
+        graduation_date, 
+        primary_teaching_subject, 
+        secondary_teaching_subject, 
+        kenya_county, 
+        approval_status, 
+        approval_date, 
+        created_at, 
+        updated_at
+      FROM 
+        student 
+      WHERE 
+        approval_status = 'pending'
+    `;
+    
+    const result = await pool.query(query);
+    console.log(result);
 
+    if (result.rows.length === 0) {
+      return res.status(404).json({ message: 'No pending students found' });
+    }
+    
+    res.json({ students: result.rows });
+  } catch (error) {
+    console.error('Error fetching pending students:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+});
+
+
+
+// VERIFY THE STUDENTS
+// Update student status and approval date
+app.put('/students/:registration_id/status', async (req, res) => {
+  const { registration_id } = req.params;
+  const { approval_status } = req.body;
+  
+  // Validate input
+  if (!['verified', 'rejected'].includes(approval_status)) {
+    return res.status(400).json({ message: 'Invalid approval status. It must be either "verified" or "rejected".' });
+  }
+
+  try {
+    const query = `
+      UPDATE student 
+      SET 
+        approval_status = $1, 
+        approval_date = CURRENT_TIMESTAMP,
+        updated_at = CURRENT_TIMESTAMP
+      WHERE 
+        registration_id = $2
+      RETURNING *
+    `;
+
+    const result = await pool.query(query, [approval_status, registration_id]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ message: 'Student not found' });
+    }
+
+    res.json({ message: 'Student status updated successfully', student: result.rows[0] });
+  } catch (error) {
+    console.error('Error updating student status:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+});
+
+
+
+// LOGIN THE STUDENT
 // student signin
 app.post('/student/signin', async (req, res) => {
     console.log('Received body:', req.body);
@@ -528,6 +579,73 @@ app.post('/supervisors', async (req, res) => {
 });
 
 
+// ALL UNVERIFIED SUPERVISORS
+// Fetch all supervisors with pending status
+app.get('/supervisors/pending', async (req, res) => {
+  try {
+    const query = `
+      SELECT 
+        id, 
+        supervisor_name, 
+        email, 
+        approval_status, 
+        university_id, 
+        course_id
+      FROM 
+        supervisors
+      WHERE 
+        approval_status = 'pending'
+    `;
+
+    const result = await pool.query(query);
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ message: 'No pending supervisors found' });
+    }
+
+    res.json({ pending_supervisors: result.rows });
+  } catch (error) {
+    console.error('Error fetching pending supervisors:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+});
+
+
+
+
+// Update supervisor status and approval date
+app.put('/supervisors/:id/status', async (req, res) => {
+  const { id } = req.params;
+  const { approval_status } = req.body;
+  
+  // Validate input
+  if (!['verified', 'rejected'].includes(approval_status)) {
+    return res.status(400).json({ message: 'Invalid approval status. It must be either "verified" or "rejected".' });
+  }
+
+  try {
+    const query = `
+      UPDATE supervisors 
+      SET 
+        approval_status = $1
+      WHERE 
+        id = $2
+      RETURNING *
+    `;
+
+    const result = await pool.query(query, [approval_status, id]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ message: 'Supervisor not found' });
+    }
+
+    res.json({ message: 'Supervisor status updated successfully', supervisor: result.rows[0] });
+  } catch (error) {
+    console.error('Error updating supervisor status:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+});
+
 
 // SUPERVISOR login
 app.post('/supervisors/signin', async (req, res) => {
@@ -669,7 +787,8 @@ app.get('/vacancies', async (req, res) => {
         v.coordinator_phone,
         v.accommodation_provided,
         v.stipend_amount,
-        h.school_id
+        h.school_id,
+        h.school_name
       FROM 
         vacancy v
       JOIN 
@@ -728,6 +847,174 @@ app.get('/vacancy/:vancancy_id', async (req, res) => {
 });
 
 // ================================================================================================================================================================
+
+
+
+
+
+// Endpoint to submit schemes of work for a specific week
+app.post('/schemes_of_work', async (req, res) => {
+  const { student_id, week_number, lessons } = req.body;
+
+  try {
+    // Insert the scheme of work
+    const schemeResult = await pool.query(
+      `INSERT INTO schemes_of_work (student_id, week_number) VALUES ($1, $2) RETURNING scheme_id`,
+      [student_id, week_number]
+    );
+
+    const scheme_id = schemeResult.rows[0].scheme_id;
+
+    // Insert the lessons
+    const lessonPromises = lessons.map((lesson, index) => {
+      return pool.query(
+        `INSERT INTO lessons (
+          scheme_id, 
+          lesson_number, 
+          instructional_objectives, 
+          life_approach, 
+          teaching_activities, 
+          methods_strategies, 
+          resources_references, 
+          assessment, 
+          remarks
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+        [
+          scheme_id,
+          index + 1,
+          lesson.instructional_objectives,
+          lesson.life_approach,
+          lesson.teaching_activities,
+          lesson.methods_strategies,
+          lesson.resources_references,
+          lesson.assessment,
+          lesson.remarks
+        ]
+      );
+    });
+
+    await Promise.all(lessonPromises);
+
+    res.status(201).json({ message: 'Scheme of work submitted successfully' });
+  } catch (error) {
+    console.error('Error submitting scheme of work:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+});
+
+
+
+// POST endpoint to add a lesson plan
+app.post('/lesson-plan', async (req, res) => {
+  try {
+      const {
+          student_id,
+          subject_name,
+          topic_name,
+          subtopic_name,
+          lesson_date,
+          lesson_time,
+          lesson_objectives
+      } = req.body;
+
+      const newLessonPlan = await pool.query(
+          `INSERT INTO lesson_plan (
+              student_id, 
+              subject_name, 
+              topic_name, 
+              subtopic_name, 
+              lesson_date, 
+              lesson_time, 
+              lesson_objectives
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
+          [
+              student_id,
+              subject_name,
+              topic_name,
+              subtopic_name,
+              lesson_date,
+              lesson_time,
+              lesson_objectives
+          ]
+      );
+      res.json(newLessonPlan.rows[0]);
+  } catch (err) {
+      console.error(err.message);
+      res.status(500).send('Server error');
+  }
+});
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 // Error handling middleware
 app.use((err, req, res, next) => {

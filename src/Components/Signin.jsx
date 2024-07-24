@@ -26,9 +26,6 @@ const Signin = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
-console.log('formData being sent:', formData);
-
-
     try {
       console.log('Attempting to send request...');
       const response = await axios.post('http://localhost:5000/student/signin', formData, {
@@ -38,14 +35,10 @@ console.log('formData being sent:', formData);
         }
         
       });
-  console.log('Request completed');
-
       const { token, data} = response.data;
-      console.log(response.data);
       console.log('Full response:', response);
       console.log('Response data:', response.data);
-      console.log('Token:', response.token);
-      // console.log('Student:', response.data.student);
+      // console.log('Token:', response?.data?.token);
 
       if (token) {
         localStorage.setItem('token', token);
@@ -55,7 +48,7 @@ console.log('formData being sent:', formData);
         const userRoles = decodedToken.role;
         console.log(userRoles);
 
-        if (userRoles.includes('student-teacher')) {
+        if (userRoles.includes('student')) {
           const redirectTo = location.state?.from || '/studentportal';
           navigate(redirectTo);
         } else if (userRoles.includes('hod')) {
@@ -99,6 +92,7 @@ console.log('formData being sent:', formData);
               type="email"
               name="email"
               value={formData.email}
+              placeholder="Email"
               onChange={handleChange}
               required
               className="w-full px-3 py-2 rounded-lg shadow-lg border-b border-slate-500 focus:outline-none bg-slate-100 focus:bg-slate-100 focus:border-slate-700"
@@ -108,6 +102,7 @@ console.log('formData being sent:', formData);
             <input
               type="password"
               name="hashed_password"
+              placeholder="Password"
               value={formData.hashed_password}
               onChange={handleChange}
               required

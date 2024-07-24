@@ -74,6 +74,26 @@ CREATE TABLE high_school (
     password VARCHAR(255) NOT NULL
 );
 
+INSERT INTO high_school (
+    school_name, 
+    registration_number, 
+    school_level, 
+    education_system, 
+    school_type, 
+    official_email, 
+    website, 
+    principal_name, 
+    principal_email, 
+    county, 
+    password
+) VALUES
+    ('Springfield High School', 'SPR12345', 'National', '8-4-4', 'Public', 'info@springfieldhigh.edu', 'http://www.springfieldhigh.edu', 'John Doe', 'john.doe@springfieldhigh.edu', 'Nairobi', 'securepassword123'),
+    ('Greenwood Academy', 'GWD67890', 'Regional', 'CBC', 'Private', 'contact@greenwoodacademy.co.ke', 'http://www.greenwoodacademy.co.ke', 'Jane Smith', 'jane.smith@greenwoodacademy.co.ke', 'Kiambu', 'securepassword123'),
+    ('Riverside School', 'RVS11223', 'County Level', '8-4-4', 'Public', 'admin@riversideschool.org', 'http://www.riversideschool.org', 'Emily Johnson', 'emily.johnson@riversideschool.org', 'Mombasa', 'securepassword123'),
+    ('Sunset International School', 'SUN44556', 'International', 'CBC', 'Private', 'info@sunsetinternational.org', 'http://www.sunsetinternational.org', 'Michael Brown', 'michael.brown@sunsetinternational.org', 'Nakuru', 'securepassword123'),
+    ('Pinewood High School', 'PIN78901', 'District Level', '8-4-4', 'Public', 'contact@pinewoodhigh.edu', 'http://www.pinewoodhigh.edu', 'Sarah Wilson', 'sarah.wilson@pinewoodhigh.edu', 'Uasin Gishu', 'securepassword123');
+
+
 
 
 CREATE TABLE vacancy(
@@ -94,6 +114,27 @@ CREATE TABLE vacancy(
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
+
+INSERT INTO vacancy (
+    primary_subject, 
+    secondary_subject, ;
+    positions_available, 
+    stat_date, 
+    end_date, 
+    application_deadline, 
+    coordinator_name, 
+    coordinator_email, 
+    coordinator_phone, 
+    accommodation_provided,    
+    stipend_amount, 
+    school_id
+) VALUES
+    ('Mathematics', 'Physics', 2, '2024-08-01', '2024-12-01', '2024-11-15', 'John Doe', 'john.doe@springfieldhigh.edu', '0701234567', TRUE, 50000.00, 1),
+    ('English', 'Literature', 3, '2024-09-01', '2025-01-01', '2024-12-15', 'Jane Smith', 'jane.smith@greenwoodacademy.co.ke', '0712345678', FALSE, 55000.00, 2),
+    ('Biology', 'Chemistry', 1, '2024-07-15', '2024-11-15', '2024-10-15', 'Emily Johnson', 'emily.johnson@riversideschool.org', '0723456789', TRUE, 60000.00, 3),
+    ('History', 'Geography', 2, '2024-08-15', '2025-01-15', '2024-12-01', 'Michael Brown', 'michael.brown@sunsetinternational.org', '0734567890', FALSE, 62000.00, 4),
+    ('Computer Science', 'Mathematics', 4, '2024-09-01', '2025-02-01', '2024-11-30', 'Sarah Wilson', 'sarah.wilson@pinewoodhigh.edu', '0745678901', TRUE, 65000.00, 5);
+
 
 
 -- courses:
@@ -172,3 +213,83 @@ INSERT INTO course (course_code, course_name) VALUES
   "course_id": 5,
   "password": "SecureP@ssw0rd"
 }
+
+
+
+CREATE TABLE schemes_of_work (
+  scheme_id SERIAL PRIMARY KEY,
+  student_id INTEGER REFERENCES student(registration_id) ON DELETE CASCADE,
+  week_number INTEGER NOT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+
+CREATE TABLE lessons (
+  lesson_id SERIAL PRIMARY KEY,
+  scheme_id INTEGER REFERENCES schemes_of_work(scheme_id) ON DELETE CASCADE,
+  lesson_number INTEGER NOT NULL,
+  instructional_objectives TEXT,
+  life_approach TEXT,
+  teaching_activities TEXT,
+  methods_strategies TEXT,
+  resources_references TEXT,
+  assessment TEXT,
+  remarks TEXT,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+
+-- lesson data
+{
+  "student_id": 1,
+  "week_number": 1,
+  "lessons": [
+    {
+      "instructional_objectives": "Understand basic algebra concepts",
+      "life_approach": "Relate algebra to real-life problem-solving",
+      "teaching_activities": "Interactive examples, group work",
+      "methods_strategies": "Lecture, discussion, hands-on activities",
+      "resources_references": "Algebra textbook, online resources",
+      "assessment": "Quiz at the end of the week",
+      "remarks": "Ensure all students participate"
+    },
+    {
+      "instructional_objectives": "Solve linear equations",
+      "life_approach": "Use linear equations in budgeting",
+      "teaching_activities": "Solve problems on board, pair work",
+      "methods_strategies": "Demonstration, practice problems",
+      "resources_references": "Worksheet, practice problems",
+      "assessment": "Homework assignment",
+      "remarks": "Review common mistakes"
+    }
+  ]
+}
+
+
+CREATE TABLE lesson_plan (
+    lesson_plan_id SERIAL PRIMARY KEY,
+    student_id INTEGER NOT NULL,
+    subject_name VARCHAR(100) NOT NULL,
+    topic_name VARCHAR(100) NOT NULL,
+    subtopic_name VARCHAR(100) NOT NULL,
+    lesson_date DATE NOT NULL,
+    lesson_time TIME NOT NULL,
+    lesson_objectives TEXT NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (student_id) REFERENCES student(registration_id) ON DELETE CASCADE
+);
+
+
+
+
+
+
+-- thanks for the good work, lets now handle creating records of work that is being submitted by each student provides:
+-- Subject Name:
+-- Form/Grade:
+-- Topic:
+-- Year:
+-- Term:
